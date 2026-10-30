@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Watching & Finances</title>
+<style>
+  :root { --bg:#0f1115; --card:#181b22; --line:#262a33; --text:#e8eaed; --muted:#8b93a1; --accent:#2962ff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  header { padding:20px 20px 4px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; }
+  .nav-tabs { display:flex; gap:8px; }
+  .nav-btn { padding:8px 16px; border-radius:10px; border:1px solid var(--line); background:var(--card); color:var(--muted); cursor:pointer; font-size:14px; font-weight:600; }
+  .nav-btn:hover { color:var(--text); }
+  .nav-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+  
+  h1 { margin:0; font-size:22px; }
+  p.sub { margin:4px 0 0; color:var(--muted); font-size:13px; padding:0 20px; }
+  
+  .page { display:none; }
+  .page.active { display:block; }
+
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(176px,1fr)); gap:14px; padding:16px 20px 30px; }
+  .tile { position:relative; aspect-ratio:1/1; background:var(--card); border:1px solid var(--line); border-radius:16px; overflow:hidden; }
+  .tile .tradingview-widget-container { position:absolute; inset:0; z-index:2; }
+  .tile .tradingview-widget-container__widget { width:100%; height:100%; }
+
+  .tile { transition:background .3s; }
+  .tile.up2 { background:#07602d; }
+  .tile.up1 { background:#4fae75; }
+  .tile.dn2 { background:#a3141f; }
+  .tile.dn1 { background:#c9606a; }
+  .pct { position:absolute; left:50%; bottom:8px; transform:translateX(-50%); z-index:4; pointer-events:none;
+         padding:3px 12px; border-radius:999px; background:rgba(0,0,0,.35); color:#fff; font-weight:700; font-size:14px; white-space:nowrap; }
+  .del { position:absolute; top:8px; right:8px; z-index:5; width:26px; height:26px; border:none; border-radius:50%;
+         background:rgba(0,0,0,.55); color:#fff; cursor:pointer; font-size:15px; line-height:1; opacity:0; transition:opacity .15s; }
+  .tile:hover .del { opacity:1; }
+  @media (hover:none) { .del { opacity:.8; } }
+  
+  .drag-handle { position:absolute; bottom:8px; right:8px; z-index:5; width:26px; height:26px; border:none; border-radius:50%;
+         background:rgba(0,0,0,.55); color:#fff; cursor:grab; display:flex; align-items:center; justify-content:center; font-size:14px; opacity:0; transition:opacity .15s; }
+  .tile:hover .drag-handle { opacity:1; }
+  @media (hover:none) { .drag-handle { opacity:.8; } }
+
+  .add { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; border:2px dashed var(--line);
+         background:transparent; color:var(--muted); cursor:pointer; font-size:14px; }
+  .add:hover { border-color:var(--accent); color:var(--text); }
+  .add .plus { font-size:42px; line-height:1; }
+
+  .sec-head { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin:22px 20px 0; }
+  .sec-title { margin:0; font-size:18px; }
+  .periods { display:flex; gap:4px; flex-wrap:wrap; }
+  .periods button { padding:6px 11px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--muted); cursor:pointer; font-size:12.5px; }
+  .periods button:hover { color:var(--text); }
+  .periods button.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .grid { padding-bottom:16px; min-height:208px; transition:background .15s; border-radius:16px; }
+  .sec:last-of-type .grid { padding-bottom:90px; }
+  .grid.over { background:rgba(41,98,255,.12); outline:2px dashed var(--accent); outline-offset:-6px; }
+  .tile.dragging { opacity:.4; }
+
+  /* Finances: мрежа 2x2 */
+  .fin-bar { padding:12px 20px 0; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .fin-bar select { padding:9px 12px; border-radius:10px; border:1px solid var(--line); background:var(--card); color:var(--text); font:inherit; font-size:14px; font-weight:600; cursor:pointer; }
+  .fin-bar select:focus { outline:none; border-color:var(--accent); }
+  .fin-grid { display:grid; grid-template-columns:1fr; grid-template-rows:auto auto; gap:16px; padding:12px 20px 40px; }
+  .fin-grid .quad { min-height:0; overflow:visible; }
+  .fin-grid .quad.notes-quad { min-height:380px; }
+  .fin-grid .quad.hidden { display:none; }
+  .quad { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:18px 20px; display:flex; flex-direction:column; min-height:460px; min-width:0; }
+  .quad h3 { margin:0 0 6px; font-size:17px; }
+  .quad label { display:block; font-size:12px; color:var(--muted); margin:10px 0 4px; }
+  .quad input, .quad select { width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); font:inherit; font-size:14px; }
+  .quad input:focus, .quad select:focus, .quad textarea:focus { outline:none; border-color:var(--accent); }
+  .quad .two { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .quad .res { margin-top:auto; padding:12px 14px; border-radius:12px; background:var(--bg); border:1px solid var(--line); }
+  .quad .res .big { font-size:24px; font-weight:700; color:#4fae75; }
+  .quad .res .big small { font-size:12px; font-weight:500; color:var(--muted); margin-left:6px; }
+  .quad .res .line { display:flex; justify-content:space-between; gap:10px; font-size:13px; color:var(--muted); margin-top:6px; }
+  .quad .res .line b { color:var(--text); }
+
+  /* Резултати: редове с черти, редуващи се сиво/черно */
+  .quad .res { padding:0; overflow:hidden; }
+  .quad .res > * { margin:0; padding:10px 14px; border-top:1px solid var(--line); }
+  .quad .res > *:first-child { border-top:none; }
+  .quad .res > *:nth-child(odd) { background:#2a2e38; }
+  .quad .res > *:nth-child(even) { background:#0a0b0e; }
+  .quad .res .line { margin-top:0; }
+  .quad .hint { font-size:11.5px; color:var(--muted); margin-top:6px; }
+  .quad .spacer-top { height:14px; flex:0 0 auto; }
+  .quad textarea { flex:1; width:100%; min-height:120px; resize:vertical; padding:12px; border-radius:10px; border:1px solid var(--line); background:var(--bg); color:var(--text); font:inherit; font-size:14px; line-height:1.5; }
+  @media (max-width:900px) { .fin-grid .quad.notes-quad { min-height:300px; } }
+  body.on-fin #notes { display:none; }
+
+  .calc { position:fixed; right:16px; bottom:16px; z-index:50; width:300px; max-width:calc(100vw - 32px); background:var(--card);
+          border:1px solid var(--line); border-radius:16px; box-shadow:0 8px 30px rgba(0,0,0,.5); overflow:hidden; }
+  .calc-head { display:flex; justify-content:space-between; align-items:center; padding:12px 14px; cursor:pointer; font-weight:600; font-size:14px; user-select:none; }
+  .calc-body { padding:0 14px 14px; display:none; }
+  .calc.open .calc-body { display:block; }
+  .calc label { display:block; font-size:12px; color:var(--muted); margin:10px 0 4px; }
+  .calc input, .calc select { width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); font-size:14px; text-transform:none; }
+  .calc .two { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .calc .res { margin-top:14px; padding:12px; border-radius:12px; background:var(--bg); border:1px solid var(--line); }
+  .calc .res .big { font-size:22px; font-weight:700; color:#4fae75; }
+  .calc .res .line { display:flex; justify-content:space-between; font-size:13px; color:var(--muted); margin-top:6px; }
+  .calc .res .line b { color:var(--text); }
+
+  .notes { right:16px; }
+  .notes textarea { width:100%; display:block; resize:none; padding:10px; border-radius:8px; border:1px solid var(--line);
+                    background:var(--bg); color:var(--text); font:inherit; font-size:14px; line-height:1.45; text-transform:none; margin-top:2px; height:200px; }
+  
+  dialog { background:var(--card); color:var(--text); border:1px solid var(--line); border-radius:16px; padding:22px; width:min(380px,90vw); }
+  dialog::backdrop { background:rgba(0,0,0,.6); }
+  dialog h2 { margin:0 0 6px; font-size:18px; }
+  dialog p { margin:0 0 14px; color:var(--muted); font-size:13px; line-height:1.5; }
+  input[type="text"]#sym { width:100%; padding:11px 12px; border-radius:10px; border:1px solid var(--line); background:var(--bg); color:var(--text); font-size:15px; text-transform:uppercase; }
+  .row { display:flex; gap:10px; justify-content:flex-end; margin-top:16px; }
+  .btn { padding:9px 16px; border-radius:10px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer; font-size:14px; }
+  .btn.primary { background:var(--accent); border-color:var(--accent); }
+
+  /* ===== Monthly Budget ===== */
+  .bud-wrap { padding:16px 20px 120px; max-width:1200px; margin:0 auto; }
+  .month-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .month-bar .arrow { width:36px; height:36px; border-radius:10px; border:1px solid var(--line); background:var(--card); color:var(--text); cursor:pointer; font-size:14px; }
+  .month-bar .arrow:hover { border-color:var(--accent); }
+  .month-bar input[type=month] { padding:8px 12px; border-radius:10px; border:1px solid var(--line); background:var(--card); color:var(--text); font:inherit; font-size:15px; font-weight:600; color-scheme:dark; }
+  .month-bar .spacer { flex:1; }
+  .month-chips { display:flex; gap:6px; flex-wrap:wrap; margin:12px 0 4px; }
+  .chip { padding:4px 10px; border-radius:999px; border:1px solid var(--line); background:transparent; color:var(--muted); font-size:12px; cursor:pointer; }
+  .chip:hover { color:var(--text); }
+  .chip.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .bud-card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; margin-top:16px; }
+  .bud-card h3 { margin:0 0 12px; font-size:16px; display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .bud-card h3 .tot { font-size:14px; color:var(--muted); font-weight:600; }
+  .bud-card h3 .tot b { color:var(--text); }
+  .bud-field label { display:block; font-size:11.5px; color:var(--muted); margin-bottom:4px; }
+  .bud-field input, .item input { width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--text); font:inherit; font-size:14px; min-width:0; }
+  .bud-field input:focus, .item input:focus { outline:none; border-color:var(--accent); }
+  .income-row { display:flex; gap:12px; flex-wrap:wrap; align-items:stretch; }
+  .inc-box { background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:10px; width:190px; position:relative; }
+  .inc-box.main { border-color:#4fae75; }
+  .inc-box .nm { margin-bottom:6px; }
+  .inc-box .x { position:absolute; top:4px; right:6px; border:none; background:transparent; color:var(--muted); cursor:pointer; font-size:15px; }
+  .inc-box .x:hover { color:#e5484d; }
+  .inc-add { width:190px; min-height:84px; border:2px dashed var(--line); border-radius:12px; background:transparent; color:var(--muted); cursor:pointer; font-size:14px; }
+  .inc-add:hover { border-color:var(--accent); color:var(--text); }
+  .cat-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:14px; margin-top:16px; }
+  .cat { background:var(--card); border:1px solid var(--line); border-top:4px solid var(--c); border-radius:16px; padding:14px; display:flex; flex-direction:column; }
+  .cat h4 { margin:0 0 10px; font-size:15px; }
+  .items { display:flex; flex-direction:column; gap:6px; flex:1; }
+  .item { display:grid; grid-template-columns:1fr 90px 22px; gap:6px; align-items:center; }
+  .item .x { border:none; background:transparent; color:var(--muted); cursor:pointer; font-size:15px; padding:0; }
+  .item .x:hover { color:#e5484d; }
+  .cat .add-item { margin-top:8px; padding:6px; border:1px dashed var(--line); border-radius:8px; background:transparent; color:var(--muted); cursor:pointer; font-size:12.5px; }
+  .cat .add-item:hover { color:var(--text); border-color:var(--c); }
+  .cat-foot { margin-top:12px; padding-top:10px; border-top:1px solid var(--line); }
+  .cat-foot .amt { font-size:19px; font-weight:700; }
+  .cat-foot .pc { font-size:12.5px; color:var(--muted); margin-top:2px; }
+  .bar { height:8px; border-radius:99px; background:var(--bg); overflow:hidden; margin-top:8px; }
+  .bar > i { display:block; height:100%; background:var(--c); border-radius:99px; transition:width .25s; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; margin-bottom:16px; }
+  .stat { background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:12px; }
+  .stat .l { font-size:12px; color:var(--muted); }
+  .stat .v { font-size:20px; font-weight:700; margin-top:4px; }
+  .stat .s { font-size:12.5px; color:var(--muted); margin-top:2px; }
+  .pos { color:#4fae75; } .neg { color:#e5484d; }
+  .stack { display:flex; height:22px; border-radius:99px; overflow:hidden; background:var(--bg); border:1px solid var(--line); }
+  .stack > i { display:block; height:100%; transition:width .25s; }
+  .sum-table { width:100%; border-collapse:collapse; margin-top:14px; font-size:14px; }
+  .sum-table td, .sum-table th { padding:8px 6px; border-bottom:1px solid var(--line); text-align:right; }
+  .sum-table th { color:var(--muted); font-size:12px; font-weight:600; }
+  .sum-table td:first-child, .sum-table th:first-child { text-align:left; }
+  .dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:8px; background:var(--c); }
+  .sum-table tr.total td { font-weight:700; border-bottom:none; }
+
+  .cat { position:relative; }
+  .cat-head { display:flex; gap:6px; align-items:center; margin-bottom:10px; }
+  .cat-name { flex:1; min-width:0; background:transparent; border:1px solid transparent; border-radius:8px; color:var(--text); font:inherit; font-size:15px; font-weight:700; padding:4px 6px; margin-left:-6px; }
+  .cat-name:hover { border-color:var(--line); }
+  .cat-name:focus { outline:none; border-color:var(--accent); background:var(--bg); }
+  .cat-del { border:none; background:transparent; cursor:pointer; font-size:14px; opacity:0; transition:opacity .15s; }
+  .cat:hover .cat-del { opacity:.8; }
+  @media (hover:none) { .cat-del { opacity:.7; } }
+  .cat-foot { padding-right:34px; }
+  .cat-drag { position:absolute; bottom:10px; right:10px; width:26px; height:26px; border:none; border-radius:50%; background:rgba(255,255,255,.08); color:var(--text); cursor:grab; font-size:13px; touch-action:none; user-select:none; }
+  .cat-drag:active { cursor:grabbing; }
+  .cat.dragging { opacity:.45; }
+  .cat-new { border:2px dashed var(--line); border-top:2px dashed var(--line); background:transparent; color:var(--muted); cursor:pointer; font-size:14px; align-items:center; justify-content:center; gap:8px; min-height:160px; }
+  .cat-new:hover { border-color:var(--accent); color:var(--text); }
+  .cat-new .plus { font-size:40px; line-height:1; }
+  /* ===== Voice / Gemini ===== */
+  .voice-top { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  .mic { width:64px; height:64px; border-radius:50%; border:none; background:var(--accent); color:#fff; font-size:26px; cursor:pointer; flex:none; transition:transform .15s, box-shadow .15s; }
+  .mic:hover { transform:scale(1.05); }
+  .mic.rec { background:#e5484d; animation:pulse 1.2s infinite; }
+  .mic.busy { background:#555; cursor:wait; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(229,72,77,.6);} 70%{box-shadow:0 0 0 18px rgba(229,72,77,0);} 100%{box-shadow:0 0 0 0 rgba(229,72,77,0);} }
+  .voice-main { flex:1; min-width:220px; }
+  .voice-row { display:flex; gap:8px; }
+  .voice-row input { flex:1; min-width:0; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:var(--bg); color:var(--text); font:inherit; font-size:14px; }
+  .voice-row input:focus { outline:none; border-color:var(--accent); }
+  .voice-status { margin-top:8px; font-size:13px; color:var(--muted); min-height:18px; }
+  .voice-status.err { color:#e5484d; } .voice-status.ok { color:#4fae75; }
+  .voice-status .undo { margin-left:8px; padding:2px 10px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--text); cursor:pointer; font-size:12px; }
+  .gem-cfg { display:none; margin-top:12px; padding-top:12px; border-top:1px solid var(--line); gap:10px; flex-wrap:wrap; align-items:flex-end; }
+  .gem-cfg.open { display:flex; }
+  .gem-cfg .bud-field { flex:1; min-width:200px; }
+  .gem-hint { width:100%; font-size:12px; color:var(--muted); line-height:1.5; }
+  .gem-hint a { color:var(--accent); }
+  .item.flash input { animation:flashrow 2.2s ease-out; }
+  @keyframes flashrow { 0%,40%{background:#07602d; border-color:#4fae75;} 100%{background:var(--bg);} }
+</style>
+</head>
+<body class="on-fin">
+
+<header>
+  <div>
+    <h1>📈 Portfolio & Finances</h1>
+  </div>
+  <div class="nav-tabs">
+    <button class="nav-btn active" data-page="finances">Finances</button>
+    <button class="nav-btn" data-page="watching">Watching</button>
+    <button class="nav-btn" data-page="budget">Monthly Budget</button>
+  </div>
+</header>
+
+<!-- СТРАНИЦА 1: WATCHING -->
+<div id="page-watching" class="page">
+  <p class="sub">За да добавите нова компания, моля влезте в TradingView, намерете компанията и я поставете в търсачката по този начин „борса:компания“, пример: XETR:NOV - така компанията ще бъде добавена автоматично и прозорчето, на което се визуализира, ще работи като хиперлинк. Като го кликнете, ще ви изпраща в страницата на компанията в TradingView.</p>
+  <section class="sec">
+    <div class="sec-head"><h2 class="sec-title">Watching</h2><div class="periods" data-sec="watch"></div></div>
+    <div class="grid" id="grid-watch" data-sec="watch"></div>
+  </section>
+  <section class="sec">
+    <div class="sec-head"><h2 class="sec-title">TOP in Vanguard</h2><div class="periods" data-sec="top"></div></div>
+    <div class="grid" id="grid-top" data-sec="top"></div>
+  </section>
+</div>
+
+<!-- СТРАНИЦА 2: FINANCES -->
+<div id="page-finances" class="page active">
+  <p class="sub">Калкулатори за дивиденти, сложна лихва и ипотечен кредт. Всичко се запазва автоматично.</p>
+  <div class="fin-bar">
+    <select id="calcPick" aria-label="Избор на калкулатор">
+      <option value="q-comp" selected>🧮 Сложна лихва</option>
+      <option value="q-div">💵 Дивиденти</option>
+      <option value="q-mort">🏠 Ипотечен кредит</option>
+    </select>
+  </div>
+  <div class="fin-grid">
+
+    <section class="quad hidden" id="q-div">
+      <h3>💵 Калкулатор за дивиденти</h3>
+      <div class="two">
+        <div><label>Начална инвестиция</label><input id="d_start" type="text" inputmode="decimal" min="0" value="10000"></div>
+        <div><label>Месечна вноска</label><input id="d_contrib" type="text" inputmode="decimal" min="0" value="200"></div>
+      </div>
+      <div class="two">
+        <div><label>Дивидентна доходност, %</label><input id="d_yield" type="text" inputmode="decimal" min="0" step="0.1" value="4"></div>
+        <div><label>Ръст на дивидента / год., %</label><input id="d_dgrow" type="text" inputmode="decimal" step="0.1" value="5"></div>
+      </div>
+      <div class="two">
+        <div><label>Ръст на цената / год., %</label><input id="d_pgrow" type="text" inputmode="decimal" step="0.1" value="5"></div>
+        <div><label>Срок, години</label><input id="d_years" type="text" inputmode="decimal" min="1" step="1" value="20"></div>
+      </div>
+      <div class="two">
+        <div><label>Данък върху дивидента, %</label><input id="d_tax" type="text" inputmode="decimal" min="0" max="100" step="0.1" value="5"></div>
+        <div><label>Реинвестиране на дивидентите</label>
+          <select id="d_drip"><option value="1">Да</option><option value="0">Не</option></select></div>
+      </div>
+      <div class="spacer-top"></div>
+      <div class="res">
+        <div class="big"><span id="d_yearly">—</span><small>дивиденти за последната година</small></div>
+        <div class="line"><span>Средно на месец (последната година)</span><b id="d_monthly">—</b></div>
+        <div class="line"><span>Общо получени дивиденти (нето)</span><b id="d_sum">—</b></div>
+        <div class="line"><span>Стойност на портфейла в края</span><b id="d_total">—</b></div>
+        <div class="line"><span>Общо вложено</span><b id="d_in">—</b></div>
+        <div class="line"><span>Доходност върху вложеното</span><b id="d_yoc">—</b></div>
+      </div>
+    </section>
+
+    <section class="quad" id="q-comp">
+      <h3>🧮 Калкулатор сложна лихва</h3>
+      <label>Начална сума</label>
+      <input id="c_start" type="text" inputmode="decimal" min="0" value="1000">
+      <div class="two">
+        <div><label>Вноска</label><input id="c_contrib" type="text" inputmode="decimal" min="0" value="100"></div>
+        <div><label>Колко често</label>
+          <select id="c_freq"><option value="12">Месечно</option><option value="1">Годишно</option></select></div>
+      </div>
+      <div class="two">
+        <div><label>Годишна печалба, %</label><input id="c_rate" type="text" inputmode="decimal" step="0.1" value="8"></div>
+        <div><label>Срок, години</label><input id="c_years" type="text" inputmode="decimal" min="1" step="1" value="10"></div>
+      </div>
+      <div class="spacer-top"></div>
+      <div class="res">
+        <div class="big" id="r_total">—</div>
+        <div class="line"><span>Общо вложено</span><b id="r_in">—</b></div>
+        <div class="line"><span>Печалба</span><b id="r_gain">—</b></div>
+      </div>
+    </section>
+
+    <section class="quad hidden" id="q-mort">
+      <h3>🏠 Калкулатор за ипотечен кредит</h3>
+      <div class="two">
+        <div><label>Сума на кредита</label><input id="m_amount" type="text" inputmode="decimal" min="0" value="100000"></div>
+        <div><label>Срок, години</label><input id="m_years" type="text" inputmode="decimal" min="1" step="1" value="25"></div>
+      </div>
+      <div class="two">
+        <div><label>Годишен лихвен процент, %</label><input id="m_rate" type="text" inputmode="decimal" min="0" step="0.01" value="3.5"></div>
+        <div><label>ГПР, %</label><input id="m_apr" type="text" inputmode="decimal" min="0" step="0.01" value=""></div>
+      </div>
+   
+      <div class="two">
+        <div><label>Вид вноска</label>
+          <select id="m_type"><option value="ann">Анюитетна (равни вноски)</option><option value="dim">Намаляваща (равни главници)</option></select></div>
+      </div>
+      <div class="spacer-top"></div>
+      <div class="res">
+        <div class="big"><span id="m_pay">—</span><small id="m_pay_lbl">месечна вноска</small></div>
+        <div class="line"><span>Годишен лихвен процент</span><b id="m_rate_out">—</b></div>
+        <div class="line"><span>ГПР</span><b id="m_apr_out">—</b></div>
+        <div class="line"><span>Общо лихви</span><b id="m_interest">—</b></div>
+        <div class="line"><span>Годишни разходи по кредита (от лихва и ГПР)</span><b id="m_year_cost_out">—</b></div>
+        <div class="line"><span>Общо такси и разходи</span><b id="m_fees">—</b></div>
+        <div class="line"><span>Общо за връщане (с всичко)</span><b id="m_total">—</b></div>
+      </div>
+    </section>
+
+    <section class="quad notes-quad">
+      <h3>📝 Бележки 2</h3>
+      <textarea id="finNote2" placeholder="Пиши тук…"></textarea>
+    </section>
+
+  </div>
+</div>
+
+
+<!-- СТРАНИЦА 3: MONTHLY BUDGET -->
+<div id="page-budget" class="page">
+  <p class="sub">Попълни приходите и разходите за месеца. Смени месеца със стрелките – всеки месец се пази отделно, а нов месец започва празен.</p>
+  <div class="bud-wrap">
+    <div class="month-bar">
+      <button class="arrow" id="mPrev" title="Предишен месец">◀</button>
+      <input type="month" id="mPick">
+      <button class="arrow" id="mNext" title="Следващ месец">▶</button>
+      <span class="spacer"></span>
+      <button class="btn" id="mClear">Изчисти месеца</button>
+    </div>
+    <div class="month-chips" id="mChips"></div>
+
+    <section class="bud-card" id="voiceCard">
+      <h3>🎙️ Гласово добавяне на разход <button class="btn" id="gemCfgBtn" style="padding:4px 10px;font-size:13px">⚙️ Gemini</button></h3>
+      <div class="voice-top">
+        <button class="mic" id="micBtn" title="Натисни и кажи какво си похарчил">🎤</button>
+        <div class="voice-main">
+          <div class="voice-row">
+            <input type="text" id="vText" placeholder="Напр. „12 евро за обяд и 40 лева гориво“" autocomplete="off">
+            <button class="btn primary" id="vSend">Добави</button>
+          </div>
+          <div class="voice-status" id="vStatus">Натисни микрофона и кажи какво си похарчил – Gemini ще го сложи в нужната категория.</div>
+        </div>
+      </div>
+      <div class="gem-cfg" id="gemCfg">
+        <div class="bud-field"><label>Gemini API ключ</label><input type="password" id="gemKey" placeholder="AIza…" autocomplete="off"></div>
+        <div class="bud-field"><label>Модел</label><input type="text" id="gemModel" placeholder="gemini-flash-latest"></div>
+        <button class="btn primary" id="gemSave">Запази</button>
+        <div class="gem-hint">Безплатен ключ: <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. Ключът се пази само в този браузър (localStorage) и се изпраща единствено към Google. Не публикувай страницата с вграден ключ.</div>
+      </div>
+    </section>
+
+    <section class="bud-card">
+      <h3>💰 Приходи <span class="tot">Общо: <b id="incTotal">0,00 €</b></span></h3>
+      <div class="income-row" id="incomeRow"></div>
+    </section>
+
+    <div class="cat-grid" id="catGrid"></div>
+
+    <section class="bud-card">
+      <h3>📊 Обобщение за месеца <span class="tot" id="sumMonth"></span></h3>
+      <div class="stats" id="stats"></div>
+      <div class="stack" id="stack"></div>
+      <table class="sum-table" id="sumTable"></table>
+    </section>
+  </div>
+</div>
+
+<div class="calc notes" id="notes">
+  <div class="calc-head" id="notesHead"><span>📝 Бележки</span><span id="notesArrow">▲</span></div>
+  <div class="calc-body">
+    <textarea id="notesText" placeholder="Пиши тук своите бележки…"></textarea>
+  </div>
+</div>
+
+<dialog id="dlg">
+  <h2>Добави компания</h2>
+  <p>Въведи символ във формат <b>БОРСА:СИМВОЛ</b>, както в TradingView, например NASDAQ:AMZN, NYSE:KO, XETR:SAP, BSE:5EN.</p>
+  <input id="sym" placeholder="NASDAQ:AAPL" autocomplete="off">
+  <div class="row">
+    <button class="btn" id="cancel">Отказ</button>
+    <button class="btn primary" id="ok">Добави</button>
+  </div>
+</dialog>
+
+<script>
+// Числа: приемат и запетая (num pad), и точка
+const pf = v => parseFloat(String(v).replace(",", "."));
+document.addEventListener("input", e => {
+  const t = e.target;
+  if (t.tagName === "INPUT" && t.getAttribute("inputmode") === "decimal") {
+    const c = t.value.replace(/[^0-9.,\-]/g, "");
+    if (c !== t.value) t.value = c;
+  }
+}, true);
+
+// Избор на калкулатор (по подразбиране винаги сложна лихва)
+document.getElementById("calcPick").onchange = e => {
+  ["q-comp","q-div","q-mort"].forEach(id => document.getElementById(id).classList.toggle("hidden", id !== e.target.value));
+};
+document.getElementById("calcPick").value = "q-comp";
+
+// Превключване на страници
+document.querySelectorAll(".nav-btn").forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("page-" + btn.dataset.page).classList.add("active");
+    document.body.classList.toggle("on-fin", btn.dataset.page === "finances");
+    if (btn.dataset.page === "watching" && !window.__watchShown) { window.__watchShown = true; render(); }
+  };
+});
+
+const KEY = "moi-aktsii-v2";
+const DEFAULTS = {
+  watch: ["NASDAQ:AAPL","NASDAQ:TSLA","NASDAQ:NVDA","NASDAQ:MSFT"],
+  top: ["AMEX:VOO","AMEX:VTI"]
+};
+let data;
+try {
+  data = JSON.parse(localStorage.getItem(KEY));
+  if (!data) {
+    const old = JSON.parse(localStorage.getItem("moi-aktsii"));
+    data = { watch: Array.isArray(old) ? old : DEFAULTS.watch.slice(), top: DEFAULTS.top.slice() };
+  }
+} catch (e) { data = { watch: DEFAULTS.watch.slice(), top: DEFAULTS.top.slice() }; }
+if (!Array.isArray(data.watch)) data.watch = [];
+if (!Array.isArray(data.top)) data.top = [];
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) {} };
+const allSymbols = () => [...new Set([...data.watch, ...data.top])];
+
+const grids = { watch: document.getElementById("grid-watch"), top: document.getElementById("grid-top") };
+const dlg = document.getElementById("dlg");
+const input = document.getElementById("sym");
+const PERIODS = [
+  { id: "1D", label: "Ден",      col: "change",   range: "1D"  },
+  { id: "1W", label: "Седмица",  col: "Perf.W",   range: "1M"  },
+  { id: "1M", label: "Месец",    col: "Perf.1M",  range: "1M"  },
+  { id: "6M", label: "6 месеца", col: "Perf.6M",  range: "12M" },
+  { id: "1Y", label: "Година",   col: "Perf.Y",   range: "12M" },
+  { id: "5Y", label: "5 години", col: "Perf.5Y",  range: "60M" }
+];
+const PKEY = "moi-aktsii-periods";
+let periods = { watch: "1D", top: "1D" };
+try { const sp = JSON.parse(localStorage.getItem(PKEY)); if (sp) periods = Object.assign(periods, sp); } catch (e) {}
+const savePeriods = () => { try { localStorage.setItem(PKEY, JSON.stringify(periods)); } catch (e) {} };
+const pIndex = sec => Math.max(0, PERIODS.findIndex(x => x.id === periods[sec]));
+let addTarget = "watch";
+let lastMap = {};
+let drag = null;
+
+function tile(sym, sec) {
+  const el = document.createElement("div");
+  el.className = "tile";
+  el.dataset.sym = sym;
+  
+  const wrap = document.createElement("div");
+  wrap.className = "tradingview-widget-container";
+  const s = document.createElement("script");
+  s.src = "https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js";
+  s.async = true;
+  s.innerHTML = JSON.stringify({
+    symbol: sym, width: "100%", height: "100%", locale: "en", dateRange: PERIODS[pIndex(sec)].range,
+    colorTheme: "dark", isTransparent: true, autosize: true, largeChartUrl: ""
+  });
+  const inner = document.createElement("div");
+  inner.className = "tradingview-widget-container__widget";
+  wrap.append(inner, s);
+
+  const del = document.createElement("button");
+  del.className = "del"; del.textContent = "×"; del.title = "Премахни";
+  del.onclick = (e) => { e.stopPropagation(); data[sec] = data[sec].filter(x => x !== sym); save(); render(); };
+
+  const handle = document.createElement("button");
+  handle.className = "drag-handle";
+  handle.textContent = "⋮⋮";
+  handle.title = "Хвани за преместване";
+  handle.draggable = true;
+  
+  const pct = document.createElement("div");
+  pct.className = "pct"; pct.textContent = "…";
+  
+  el.append(wrap, del, handle, pct);
+
+  handle.addEventListener("dragstart", e => {
+    drag = { sym, from: sec };
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", sym);
+    setTimeout(() => el.classList.add("dragging"), 0);
+  });
+  handle.addEventListener("dragend", () => {
+    el.classList.remove("dragging");
+    Object.values(grids).forEach(g => g.classList.remove("over"));
+    drag = null;
+  });
+  return el;
+}
+
+function renderSection(sec) {
+  const grid = grids[sec];
+  grid.innerHTML = "";
+  data[sec].forEach(s => grid.appendChild(tile(s, sec)));
+  const add = document.createElement("button");
+  add.className = "tile add";
+  add.innerHTML = '<span class="plus">+</span><span>Добави компания</span>';
+  add.onclick = () => { addTarget = sec; input.value = ""; dlg.showModal(); input.focus(); };
+  grid.appendChild(add);
+}
+
+function renderPeriods(sec) {
+  const box = document.querySelector('.periods[data-sec="' + sec + '"]');
+  box.innerHTML = "";
+  PERIODS.forEach(pr => {
+    const b = document.createElement("button");
+    b.textContent = pr.label;
+    if (pr.id === periods[sec]) b.className = "active";
+    b.onclick = () => {
+      if (periods[sec] === pr.id) return;
+      periods[sec] = pr.id; savePeriods();
+      renderPeriods(sec); renderSection(sec); apply(lastMap);
+    };
+    box.appendChild(b);
+  });
+}
+
+function render() {
+  Object.keys(grids).forEach(sec => { renderPeriods(sec); renderSection(sec); });
+  apply(lastMap);
+  refresh();
+}
+
+Object.keys(grids).forEach(sec => {
+  const grid = grids[sec];
+  grid.addEventListener("dragover", e => { if (!drag) return; e.preventDefault(); e.dataTransfer.dropEffect = "move"; grid.classList.add("over"); });
+  grid.addEventListener("dragleave", e => { if (!grid.contains(e.relatedTarget)) grid.classList.remove("over"); });
+  grid.addEventListener("drop", e => {
+    e.preventDefault();
+    grid.classList.remove("over");
+    if (!drag || drag.from === sec) return;
+    data[drag.from] = data[drag.from].filter(x => x !== drag.sym);
+    if (!data[sec].includes(drag.sym)) data[sec].push(drag.sym);
+    drag = null;
+    save(); render();
+  });
+});
+
+function confirmAdd() {
+  const v = input.value.trim().toUpperCase();
+  if (v && !data[addTarget].includes(v)) { data[addTarget].push(v); save(); render(); }
+  dlg.close();
+}
+document.getElementById("ok").onclick = confirmAdd;
+document.getElementById("cancel").onclick = () => dlg.close();
+input.addEventListener("keydown", e => { if (e.key === "Enter") confirmAdd(); });
+
+function apply(map) {
+  lastMap = map;
+  const val = (sym, sec) => { const d = map[sym]; return d ? d[pIndex(sec)] : undefined; };
+  document.querySelectorAll(".tile[data-sym]").forEach(el => {
+    const v = val(el.dataset.sym, el.closest(".grid").dataset.sec);
+    const pct = el.querySelector(".pct");
+    el.classList.remove("up2","up1","dn2","dn1");
+    if (typeof v !== "number") { pct.textContent = "—"; return; }
+    pct.textContent = (v > 0 ? "+" : "") + v.toFixed(2) + "%";
+    if (v > 1) el.classList.add("up2");
+    else if (v >= 0.01) el.classList.add("up1");
+    else if (v < -1) el.classList.add("dn2");
+    else if (v <= -0.01) el.classList.add("dn1");
+  });
+  Object.entries(grids).forEach(([sec, grid]) => {
+    const tiles = [...grid.querySelectorAll(".tile[data-sym]")];
+    tiles.sort((a, b) => {
+      const xa = val(a.dataset.sym, sec), xb = val(b.dataset.sym, sec);
+      const va = typeof xa === "number" ? xa : -Infinity;
+      const vb = typeof xb === "number" ? xb : -Infinity;
+      return vb - va;
+    });
+    tiles.forEach((el, i) => { el.style.order = i; });
+    const add = grid.querySelector(".tile.add");
+    if (add) add.style.order = 9999;
+  });
+}
+
+async function refresh() {
+  const syms = allSymbols();
+  if (!syms.length) return;
+  try {
+    const r = await fetch("https://scanner.tradingview.com/global/scan", {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ symbols: { tickers: syms }, columns: PERIODS.map(x => x.col) })
+    });
+    const j = await r.json();
+    const map = {};
+    (j.data || []).forEach(x => { map[x.s] = x.d; });
+    apply(map);
+  } catch (e) { apply(lastMap); }
+}
+setInterval(refresh, 60000);
+
+// Калкулатори и бележки
+const fmt = n => n.toLocaleString("bg-BG", { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+function calcCompound() {
+  const start = pf(document.getElementById("c_start").value) || 0;
+  const contrib = pf(document.getElementById("c_contrib").value) || 0;
+  const perYear = parseInt(document.getElementById("c_freq").value, 10);
+  const rate = (pf(document.getElementById("c_rate").value) || 0) / 100;
+  const years = Math.max(0, pf(document.getElementById("c_years").value) || 0);
+  const months = Math.round(years * 12);
+  const rm = Math.pow(1 + rate, 1 / 12) - 1;
+  let bal = start, invested = start;
+  for (let m = 1; m <= months; m++) {
+    bal *= 1 + rm;
+    if (perYear === 12 || m % 12 === 0) { bal += contrib; invested += contrib; }
+  }
+  document.getElementById("r_total").textContent = fmt(bal);
+  document.getElementById("r_in").textContent = fmt(invested);
+  document.getElementById("r_gain").textContent = fmt(bal - invested);
+}
+["c_start","c_contrib","c_freq","c_rate","c_years"].forEach(id =>
+  document.getElementById(id).addEventListener("input", calcCompound));
+calcCompound();
+
+// Плаващи бележки (страници Watching и Budget)
+const notes = document.getElementById("notes");
+const notesText = document.getElementById("notesText");
+const notesArrow = document.getElementById("notesArrow");
+const NOTES_KEY = "moi-aktsii-notes";
+try { notesText.value = localStorage.getItem(NOTES_KEY) || ""; } catch (e) {}
+notesText.addEventListener("input", () => { try { localStorage.setItem(NOTES_KEY, notesText.value); } catch (e) {} });
+const syncNotesArrow = () => { notesArrow.textContent = notes.classList.contains("open") ? "▼" : "▲"; };
+syncNotesArrow();
+document.getElementById("notesHead").onclick = () => { notes.classList.toggle("open"); syncNotesArrow(); };
+
+// Две големи полета за бележки на страница Finances
+["finNote2"].forEach(id => {
+  const ta = document.getElementById(id), k = "moi-aktsii-" + id;
+  try { ta.value = localStorage.getItem(k) || ""; } catch (e) {}
+  ta.addEventListener("input", () => { try { localStorage.setItem(k, ta.value); } catch (e) {} });
+});
+
+// Калкулатор за дивиденти
+const DIV_KEY = "moi-aktsii-divcalc";
+const DIV_IDS = ["d_start","d_contrib","d_yield","d_dgrow","d_pgrow","d_years","d_tax","d_drip"];
+try {
+  const sv = JSON.parse(localStorage.getItem(DIV_KEY));
+  if (sv) DIV_IDS.forEach(id => { if (sv[id] !== undefined) document.getElementById(id).value = sv[id]; });
+} catch (e) {}
+function calcDividends() {
+  const g = id => pf(document.getElementById(id).value) || 0;
+  const start = g("d_start"), contrib = g("d_contrib");
+  const yld = g("d_yield") / 100, dg = g("d_dgrow") / 100, pg = g("d_pgrow") / 100;
+  const tax = Math.min(100, Math.max(0, g("d_tax"))) / 100;
+  const drip = document.getElementById("d_drip").value === "1";
+  const months = Math.round(Math.max(0, g("d_years")) * 12);
+  const rp = Math.pow(1 + pg, 1 / 12) - 1;
+  let price = 1, shares = start, dps = yld;   // dps = дивидент на акция за година
+  let invested = start, received = 0, lastYear = 0;
+  const window12 = Math.min(12, months);
+  for (let m = 1; m <= months; m++) {
+    price *= 1 + rp;
+    if (m > 1 && (m - 1) % 12 === 0) dps *= 1 + dg;      // увеличение на дивидента всяка нова година
+    const payout = shares * dps / 12 * (1 - tax);
+    received += payout;
+    if (m > months - window12) lastYear += payout;
+    if (drip) shares += payout / price;
+    shares += contrib / price; invested += contrib;
+  }
+  const annual = window12 ? lastYear * 12 / window12 : 0;
+  const value = shares * price;
+  const set = (id, v) => document.getElementById(id).textContent = v;
+  set("d_yearly", fmt(annual));
+  set("d_monthly", fmt(annual / 12));
+  set("d_sum", fmt(received));
+  set("d_total", fmt(value));
+  set("d_in", fmt(invested));
+  set("d_yoc", invested > 0 ? (annual / invested * 100).toFixed(2) + " %" : "—");
+}
+DIV_IDS.forEach(id => document.getElementById(id).addEventListener("input", () => {
+  calcDividends();
+  try { localStorage.setItem(DIV_KEY, JSON.stringify(Object.fromEntries(DIV_IDS.map(i => [i, document.getElementById(i).value])))); } catch (e) {}
+}));
+calcDividends();
+
+// Калкулатор за ипотечен кредит (лихвен процент + ГПР)
+const MORT_KEY = "moi-aktsii-mortgage";
+const MORT_IDS = ["m_amount","m_years","m_rate","m_apr","m_type"];
+try {
+  const sv = JSON.parse(localStorage.getItem(MORT_KEY));
+  if (sv) { MORT_IDS.forEach(id => { if (sv[id] !== undefined) document.getElementById(id).value = sv[id]; }); }
+} catch (e) {}
+
+function mortSchedule(L, n, annualRate, dim) {
+  const r = annualRate / 12, pays = [];
+  if (dim) {
+    let bal = L; const pr = L / n;
+    for (let i = 0; i < n; i++) { pays.push(pr + bal * r); bal -= pr; }
+  } else {
+    const p = r === 0 ? L / n : L * r / (1 - Math.pow(1 + r, -n));
+    for (let i = 0; i < n; i++) pays.push(p);
+  }
+  return pays;
+}
+// ГПР = ефективна годишна ставка на всички парични потоци (вноски + такси + годишни разходи)
+function mortApr(L, n, annualRate, dim, upfront, yearly) {
+  const pays = mortSchedule(L, n, annualRate, dim).map(p => p + yearly / 12);
+  const npv = rm => { let v = L - upfront; for (let t = 1; t <= n; t++) v -= pays[t-1] / Math.pow(1 + rm, t); return v; };
+  let lo = 0, hi = 1;
+  if (npv(0) >= 0) return 0;
+  for (let i = 0; i < 80; i++) { const mid = (lo + hi) / 2; if (npv(mid) < 0) lo = mid; else hi = mid; }
+  return Math.pow(1 + (lo + hi) / 2, 12) - 1;
+}
+function calcMortgage() {
+  const g = id => pf(document.getElementById(id).value) || 0;
+  const L = g("m_amount"), n = Math.max(1, Math.round(g("m_years") * 12));
+  const dim = document.getElementById("m_type").value === "dim";
+  const upfront = 0;
+  // Лихвеният процент и ГПР са независими – въвеждат се ръчно.
+  const rate = g("m_rate") / 100, apr = g("m_apr") / 100;
+  const hasApr = document.getElementById("m_apr").value.trim() !== "";
+  // Годишните разходи се изчисляват от разликата между ГПР и лихвения процент
+  let yearly = 0;
+  if (hasApr && apr > mortApr(L, n, rate, dim, upfront, 0)) {
+    let lo = 0, hi = Math.max(L, 1) * 2;
+    for (let i = 0; i < 60; i++) { const mid = (lo + hi) / 2; if (mortApr(L, n, rate, dim, upfront, mid) < apr) lo = mid; else hi = mid; }
+    yearly = (lo + hi) / 2;
+  }
+  const pays = mortSchedule(L, n, rate, dim);
+  const sumPays = pays.reduce((a, b) => a + b, 0);
+  const interest = sumPays - L;
+  const fees = upfront + yearly * (n / 12);
+  const set = (id, v) => document.getElementById(id).textContent = v;
+  set("m_pay", dim ? fmt(pays[0]) + " → " + fmt(pays[n-1]) : fmt(pays[0]));
+  set("m_pay_lbl", dim ? "първа → последна вноска" : "месечна вноска");
+  set("m_rate_out", (rate * 100).toFixed(2) + " %");
+  set("m_apr_out", (apr * 100).toFixed(2) + " %");
+  set("m_interest", fmt(interest));
+  set("m_year_cost_out", hasApr ? fmt(yearly) : "—");
+  set("m_fees", fmt(fees));
+  set("m_total", fmt(sumPays + fees));
+}
+MORT_IDS.forEach(id => document.getElementById(id).addEventListener("input", () => {
+  calcMortgage();
+  try {
+    const o = Object.fromEntries(MORT_IDS.map(i => [i, document.getElementById(i).value]));
+    localStorage.setItem(MORT_KEY, JSON.stringify(o));
+  } catch (e) {}
+}));
+calcMortgage();
+
+render();
+
+// ---- Monthly Budget ----
+(function(){
+  const BKEY = "moi-aktsii-budget-v1";
+  const DEFAULT_CATS = [
+    {id:"bills",  name:"🧾 Сметки",            c:"#f5a524"},
+    {id:"rent",   name:"🏠 Наем / Ипотека",    c:"#7c5cff"},
+    {id:"credit", name:"💳 Кредит",            c:"#e5484d"},
+    {id:"taxes",  name:"🏛️ Такси",             c:"#00a2c7"},
+    {id:"waste",  name:"💩 Shit u dont need",  c:"#a1887f"},
+    {id:"emerg",  name:"🛟 Emergency fund",    c:"#4fae75"},
+    {id:"invest", name:"📈 Инвестиции",        c:"#2962ff"}
+  ];
+  const PALETTE = ["#ff7a59","#2dd4bf","#e879f9","#facc15","#60a5fa","#fb7185","#84cc16","#38bdf8"];
+  const MONTHS_BG = ["Януари","Февруари","Март","Април","Май","Юни","Юли","Август","Септември","Октомври","Ноември","Декември"];
+  let B = { current:null, months:{} };
+  try { const s = JSON.parse(localStorage.getItem(BKEY)); if (s && s.months) B = s; } catch(e){}
+  const save = () => { try { localStorage.setItem(BKEY, JSON.stringify(B)); } catch(e){} };
+  const nowKey = () => { const d = new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); };
+  if (!B.current) B.current = nowKey();
+  if (!Array.isArray(B.catList) || !B.catList.length) B.catList = DEFAULT_CATS.map(c => Object.assign({}, c));
+  const CATS = B.catList; // винаги се променя "на място"
+
+  const num = v => { const n = parseFloat(String(v).replace(",",".")); return isFinite(n) ? n : 0; };
+  const eur = n => n.toLocaleString("bg-BG",{minimumFractionDigits:2,maximumFractionDigits:2}) + " €";
+  const pct = n => n.toLocaleString("bg-BG",{minimumFractionDigits:1,maximumFractionDigits:1}) + "%";
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  const monthLabel = k => { const [y,m] = k.split("-"); return MONTHS_BG[+m-1] + " " + y; };
+
+  function emptyMonth() {
+    const cats = {}; CATS.forEach(c => cats[c.id] = [{n:"", a:""}]);
+    return { main:"", side:[], cats };
+  }
+  function getMonth(k) {
+    if (!B.months[k]) B.months[k] = emptyMonth();
+    const m = B.months[k];
+    CATS.forEach(c => { if (!m.cats[c.id]) m.cats[c.id] = [{n:"",a:""}]; });
+    return m;
+  }
+  const cur = () => getMonth(B.current);
+  const sum = arr => arr.reduce((s,x) => s + num(x.a), 0);
+
+  const $ = id => document.getElementById(id);
+
+  function renderChips() {
+    const keys = Object.keys(B.months).filter(k => {
+      const m = B.months[k];
+      return k === B.current || num(m.main) || sum(m.side) || CATS.some(c => sum(m.cats[c.id]||[]));
+    }).sort().reverse();
+    $("mChips").innerHTML = keys.map(k => `<button class="chip ${k===B.current?"active":""}" data-k="${k}">${monthLabel(k)}</button>`).join("");
+    $("mChips").querySelectorAll(".chip").forEach(b => b.onclick = () => setMonth(b.dataset.k));
+  }
+
+  function renderIncome() {
+    const m = cur();
+    let h = `<div class="inc-box main bud-field"><label>Основен доход (заплата)</label>
+      <input type="text" inputmode="decimal" min="0" step="0.01" id="incMain" placeholder="0.00" value="${esc(m.main)}"></div>`;
+    m.side.forEach((s,i) => {
+      h += `<div class="inc-box bud-field"><button class="x" data-i="${i}" title="Премахни">×</button>
+        <div class="nm"><label>Страничен приход</label><input type="text" data-f="n" data-i="${i}" placeholder="напр. фрийланс" value="${esc(s.n)}"></div>
+        <input type="text" inputmode="decimal" min="0" step="0.01" data-f="a" data-i="${i}" placeholder="0.00" value="${esc(s.a)}"></div>`;
+    });
+    h += `<button class="inc-add" id="addSide">+ Страничен приход</button>`;
+    $("incomeRow").innerHTML = h;
+    $("incMain").oninput = e => { m.main = e.target.value; save(); update(); };
+    $("addSide").onclick = () => { m.side.push({n:"",a:""}); save(); renderIncome(); update(); };
+    $("incomeRow").querySelectorAll(".x").forEach(b => b.onclick = () => { m.side.splice(+b.dataset.i,1); save(); renderIncome(); update(); });
+    $("incomeRow").querySelectorAll("input[data-f]").forEach(inp => inp.oninput = () => { m.side[+inp.dataset.i][inp.dataset.f] = inp.value; save(); update(); });
+  }
+
+  function renderCats() {
+    const m = cur();
+    $("catGrid").innerHTML = CATS.map(c => `
+      <div class="cat" style="--c:${c.c}" data-cat="${c.id}">
+        <div class="cat-head">
+          <input class="cat-name" type="text" value="${esc(c.name)}" title="Кликни, за да преименуваш">
+          <button class="cat-del" title="Изтрий категорията">🗑</button>
+        </div>
+        <div class="items">${m.cats[c.id].map((it,i) => `
+          <div class="item">
+            <input type="text" data-f="n" data-i="${i}" placeholder="Описание" value="${esc(it.n)}">
+            <input type="text" inputmode="decimal" min="0" step="0.01" data-f="a" data-i="${i}" placeholder="0.00" value="${esc(it.a)}">
+            <button class="x" data-i="${i}" title="Премахни">×</button>
+          </div>`).join("")}</div>
+        <button class="add-item">+ Добави ред</button>
+        <div class="cat-foot">
+          <div class="amt" data-role="amt">0,00 €</div>
+          <div class="pc" data-role="pc"></div>
+          <div class="bar"><i data-role="bar" style="width:0"></i></div>
+        </div>
+        <button class="cat-drag" title="Хвани и премести">⋮⋮</button>
+      </div>`).join("") +
+      `<button class="cat cat-new" id="addCat"><span class="plus">+</span>Нова категория</button>`;
+
+    $("addCat").onclick = () => {
+      CATS.push({ id:"c"+Date.now(), name:"Нова категория", c:PALETTE[CATS.length % PALETTE.length] });
+      save(); cur(); renderCats(); update();
+      const names = $("catGrid").querySelectorAll(".cat-name");
+      const last = names[names.length-1]; last.focus(); last.select();
+    };
+
+    $("catGrid").querySelectorAll(".cat[data-cat]").forEach(el => {
+      const id = el.dataset.cat, items = m.cats[id], cat = CATS.find(c => c.id === id);
+      el.querySelector(".cat-name").oninput = e => { cat.name = e.target.value; save(); update(); };
+      el.querySelector(".cat-del").onclick = () => {
+        if (confirm("Да изтрия ли категорията „" + cat.name + "“? Няма да се показва и в предишните месеци.")) {
+          CATS.splice(CATS.indexOf(cat), 1); save(); renderCats(); update();
+        }
+      };
+      el.querySelector(".add-item").onclick = () => { items.push({n:"",a:""}); save(); renderCats(); update(); };
+      el.querySelectorAll(".item .x").forEach(b => b.onclick = () => {
+        items.splice(+b.dataset.i,1); if (!items.length) items.push({n:"",a:""});
+        save(); renderCats(); update();
+      });
+      el.querySelectorAll(".item input").forEach(inp => inp.oninput = () => { items[+inp.dataset.i][inp.dataset.f] = inp.value; save(); update(); });
+
+      // местене с влачене (работи с мишка и пръст)
+      const h = el.querySelector(".cat-drag");
+      h.onpointerdown = e => {
+        e.preventDefault();
+        const grid = $("catGrid");
+        el.classList.add("dragging");
+        h.setPointerCapture(e.pointerId);
+        const move = ev => {
+          const t = document.elementFromPoint(ev.clientX, ev.clientY);
+          const over = t && t.closest(".cat[data-cat]");
+          if (over && over !== el && over.parentNode === grid) {
+            const kids = [...grid.querySelectorAll(".cat[data-cat]")];
+            if (kids.indexOf(el) < kids.indexOf(over)) over.after(el); else over.before(el);
+          }
+        };
+        const up = () => {
+          h.removeEventListener("pointermove", move);
+          h.removeEventListener("pointerup", up);
+          h.removeEventListener("pointercancel", up);
+          el.classList.remove("dragging");
+          const map = Object.fromEntries(CATS.map(c => [c.id, c]));
+          const order = [...grid.querySelectorAll(".cat[data-cat]")].map(x => map[x.dataset.cat]);
+          CATS.splice(0, CATS.length, ...order);
+          save(); update();
+        };
+        h.addEventListener("pointermove", move);
+        h.addEventListener("pointerup", up);
+        h.addEventListener("pointercancel", up);
+      };
+    });
+  }
+
+  function update() {
+    const m = cur();
+    const income = num(m.main) + sum(m.side);
+    const totals = CATS.map(c => sum(m.cats[c.id]));
+    const spent = totals.reduce((a,b) => a+b, 0);
+    const left = income - spent;
+    const p = v => income > 0 ? v / income * 100 : 0;
+
+    $("incTotal").textContent = eur(income);
+    $("sumMonth").textContent = monthLabel(B.current);
+
+    CATS.forEach((c,i) => {
+      const el = $("catGrid").querySelector(`[data-cat="${c.id}"]`); if (!el) return;
+      el.querySelector('[data-role="amt"]').textContent = eur(totals[i]);
+      el.querySelector('[data-role="pc"]').textContent = pct(p(totals[i])) + " от приходите";
+      el.querySelector('[data-role="bar"]').style.width = Math.min(100, p(totals[i])) + "%";
+    });
+
+    const saved = CATS.reduce((s,c,i) => s + ((c.id==="emerg"||c.id==="invest") ? totals[i] : 0), 0);
+    $("stats").innerHTML = `
+      <div class="stat"><div class="l">Приходи</div><div class="v">${eur(income)}</div><div class="s">100%</div></div>
+      <div class="stat"><div class="l">Общо похарчено / заделено</div><div class="v">${eur(spent)}</div><div class="s">${pct(p(spent))} от приходите</div></div>
+      <div class="stat"><div class="l">Остават</div><div class="v ${left<0?"neg":"pos"}">${eur(left)}</div><div class="s">${pct(p(left))} от приходите</div></div>
+      <div class="stat"><div class="l">От тях спестени / инвестирани</div><div class="v">${eur(saved)}</div><div class="s">${pct(p(saved))} от приходите</div></div>`;
+
+    let segs = CATS.map((c,i) => `<i title="${esc(c.name)}: ${pct(p(totals[i]))}" style="width:${Math.min(100,p(totals[i]))}%;background:${c.c}"></i>`).join("");
+    $("stack").innerHTML = segs;
+
+    $("sumTable").innerHTML = `<tr><th>Категория</th><th>Сума</th><th>% от приходите</th><th>% от разходите</th></tr>` +
+      CATS.map((c,i) => `<tr style="--c:${c.c}"><td><span class="dot"></span>${c.name}</td><td>${eur(totals[i])}</td><td>${pct(p(totals[i]))}</td><td>${pct(spent>0?totals[i]/spent*100:0)}</td></tr>`).join("") +
+      `<tr class="total"><td>Остават</td><td class="${left<0?"neg":"pos"}">${eur(left)}</td><td>${pct(p(left))}</td><td></td></tr>`;
+  }
+
+  function setMonth(k) {
+    if (!/^\d{4}-\d{2}$/.test(k)) return;
+    B.current = k; getMonth(k); save();
+    $("mPick").value = k;
+    renderChips(); renderIncome(); renderCats(); update();
+  }
+  function shift(d) {
+    let [y,m] = B.current.split("-").map(Number);
+    m += d; if (m > 12) { m = 1; y++; } if (m < 1) { m = 12; y--; }
+    setMonth(y + "-" + String(m).padStart(2,"0"));
+  }
+  $("mPrev").onclick = () => shift(-1);
+  $("mNext").onclick = () => shift(1);
+  $("mPick").onchange = e => setMonth(e.target.value);
+  $("mClear").onclick = () => {
+    if (confirm("Да изчистя ли всички данни за " + monthLabel(B.current) + "?")) {
+      B.months[B.current] = emptyMonth(); save(); setMonth(B.current);
+    }
+  };
+
+  // ===== Гласово добавяне на разходи с Gemini =====
+  const GKEY = "moi-aktsii-gemini-v1";
+  let G = { key:"", model:"gemini-flash-latest" };
+  try { const g = JSON.parse(localStorage.getItem(GKEY)); if (g) G = Object.assign(G, g); } catch(e){}
+  $("gemKey").value = G.key; $("gemModel").value = G.model;
+  $("gemCfgBtn").onclick = () => $("gemCfg").classList.toggle("open");
+  $("gemSave").onclick = () => {
+    G.key = $("gemKey").value.trim(); G.model = $("gemModel").value.trim() || "gemini-flash-latest";
+    try { localStorage.setItem(GKEY, JSON.stringify(G)); } catch(e){}
+    $("gemCfg").classList.remove("open"); status("Настройките са запазени ✓", "ok");
+  };
+  function status(msg, cls, html) {
+    const el = $("vStatus"); el.className = "voice-status " + (cls||"");
+    if (html) el.innerHTML = msg; else el.textContent = msg;
+  }
+
+  let lastAdded = null;
+  function addExpenses(list) {
+    const m = cur(), added = [];
+    list.forEach(x => {
+      const cat = CATS.find(c => c.id === x.categoryId) || CATS[0];
+      const amount = Math.round(num(x.amount) * 100) / 100;
+      if (!cat || !(amount > 0)) return;
+      const arr = m.cats[cat.id];
+      const last = arr[arr.length-1];
+      let it;
+      if (last && !last.n && !num(last.a)) { it = last; } else { it = {n:"", a:""}; arr.push(it); }
+      it.n = String(x.description || "").trim(); it.a = String(amount);
+      added.push({cat, it, arr});
+    });
+    save(); renderCats(); update(); renderChips();
+    // подчертаване на добавените редове
+    added.forEach(({cat, it, arr}) => {
+      const el = $("catGrid").querySelector(`[data-cat="${cat.id}"]`);
+      const row = el && el.querySelectorAll(".item")[arr.indexOf(it)];
+      if (row) row.classList.add("flash");
+    });
+    if (added.length) {
+      const first = $("catGrid").querySelector(`[data-cat="${added[0].cat.id}"]`);
+      if (first) first.scrollIntoView({behavior:"smooth", block:"center"});
+    }
+    return added;
+  }
+  function undoLast() {
+    if (!lastAdded) return;
+    const m = getMonth(lastAdded.month);
+    lastAdded.items.forEach(({cat, it}) => {
+      const arr = m.cats[cat.id]; if (!arr) return;
+      const i = arr.indexOf(it); if (i >= 0) arr.splice(i, 1);
+      if (!arr.length) arr.push({n:"", a:""});
+    });
+    lastAdded = null; save(); renderCats(); update(); renderChips();
+    status("Последното добавяне е отменено.");
+  }
+
+  async function askGemini(text) {
+    if (!G.key) { $("gemCfg").classList.add("open"); throw new Error("Първо въведи Gemini API ключ."); }
+    const ids = CATS.map(c => c.id);
+    const catList = CATS.map(c => `- ${c.id}: ${c.name.replace(/\s+/g," ").trim()}`).join("\n");
+    const sys = "Ти си асистент в приложение за месечен бюджет. Потребителят казва на български какво е похарчил (текстът е от разпознаване на реч и може да има грешки). " +
+      "Извлечи всеки отделен разход и го сложи в най-подходящата категория от списъка. Върни само JSON.\n" +
+      "Правила: amount е число в ЕВРО. Ако сумата е в лева (лв, BGN), раздели на 1.95583 и закръгли до 2 знака. " +
+      "description е кратко описание на български (1–4 думи, с главна първа буква, без сумата). " +
+      "categoryId трябва да е точно един от идентификаторите. Ако нищо не пасва добре, избери най-близката. " +
+      "Ако няма разход в текста, върни празен списък.\nКатегории:\n" + catList;
+    const body = {
+      systemInstruction: { parts: [{ text: sys }] },
+      contents: [{ role: "user", parts: [{ text }] }],
+      generationConfig: {
+        temperature: 0.1,
+        responseMimeType: "application/json",
+        responseSchema: { type:"OBJECT", properties: { expenses: { type:"ARRAY", items: { type:"OBJECT",
+          properties: { description:{type:"STRING"}, amount:{type:"NUMBER"}, categoryId:{type:"STRING", enum:ids} },
+          required: ["description","amount","categoryId"] } } }, required:["expenses"] }
+      }
+    };
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(G.model)}:generateContent`, {
+      method:"POST", headers:{ "Content-Type":"application/json", "x-goog-api-key": G.key }, body: JSON.stringify(body)
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error((data.error && data.error.message) || ("Грешка " + r.status));
+    const parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
+    const raw = parts.map(p => p.text || "").join("").replace(/```json|```/g, "").trim();
+    return (JSON.parse(raw).expenses) || [];
+  }
+
+  let busy = false;
+  async function submitText(text) {
+    text = (text || "").trim(); if (!text || busy) return;
+    busy = true; $("micBtn").classList.add("busy"); status("Gemini обработва: „" + text + "“…");
+    try {
+      const list = await askGemini(text);
+      const added = addExpenses(list);
+      if (!added.length) { status("Не открих разход в: „" + text + "“. Опитай пак с сума, напр. „15 евро за такси“.", "err"); }
+      else {
+        lastAdded = { month: B.current, items: added };
+        const msg = "✓ " + added.map(a => `${esc(a.it.n)} – ${eur(num(a.it.a))} → ${esc(a.cat.name)}`).join("; ") + " (" + monthLabel(B.current) + ")";
+        status(msg + ' <button class="undo" id="undoBtn">Отмени</button>', "ok", true);
+        $("undoBtn").onclick = undoLast; $("vText").value = "";
+      }
+    } catch (e) { status("Грешка: " + e.message, "err"); }
+    busy = false; $("micBtn").classList.remove("busy");
+  }
+  $("vSend").onclick = () => submitText($("vText").value);
+  $("vText").onkeydown = e => { if (e.key === "Enter") submitText($("vText").value); };
+
+  // Гласово въвеждане (Web Speech API – Chrome, Edge, Safari)
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let rec = null;
+  if (!SR) { $("micBtn").style.display = "none"; status("Този браузър няма гласово разпознаване – пиши в полето (или ползвай Chrome/Edge/Safari)."); }
+  $("micBtn").onclick = () => {
+    if (busy) return;
+    if (rec) { rec.stop(); return; }
+    rec = new SR(); rec.lang = "bg-BG"; rec.interimResults = true; rec.continuous = false;
+    let finalText = "";
+    rec.onstart = () => { $("micBtn").classList.add("rec"); status("🎧 Слушам… кажи какво си похарчил"); };
+    rec.onresult = e => {
+      let t = ""; for (let i = 0; i < e.results.length; i++) { t += e.results[i][0].transcript; if (e.results[i].isFinal) finalText = t; }
+      $("vText").value = t;
+    };
+    rec.onerror = e => {
+      const m = { "not-allowed":"Няма достъп до микрофона – разреши го в браузъра.", "no-speech":"Не чух нищо, опитай пак.", "audio-capture":"Не е намерен микрофон.", "network":"Мрежова грешка при разпознаването." };
+      status(m[e.error] || ("Грешка при разпознаване: " + e.error), "err"); finalText = "";
+    };
+    rec.onend = () => { $("micBtn").classList.remove("rec"); rec = null; const t = finalText || $("vText").value; if (t.trim() && !$("vStatus").classList.contains("err")) submitText(t); };
+    rec.start();
+  };
+
+  setMonth(B.current);
+})();
+</script>
+</body>
+</html>
